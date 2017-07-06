@@ -4,7 +4,7 @@
 #include "stdafx.h"
 #include "EuEngineLocalization.h"
 #include "stdlib.h"
-
+#include "include\injector\assembly.hpp"
 // This is an example of an exported variable
 EUENGINELOCALIZATION_API int nEuEngineLocalization=0;
 
@@ -218,4 +218,121 @@ EUENGINELOCALIZATION_API void __stdcall Utf8ToGB(unsigned char* str)
     {
         WideCharToMultiByte(936, 0, buf, -1, (LPSTR)str, size, nullptr, nullptr);
     }
+}
+
+
+
+
+EUENGINELOCALIZATION_API DWORD __stdcall LoadCharInfoEx(unsigned char* str, int index, BYTE*** pppCharBase, int flag)
+{
+    // pppCharBase is the address of where the 0x00 character charinfo suppose to stay if it was not crasked.
+    // ppCharInfoHolder is a 65535 * sizeof(byte*) array.
+    BYTE** ppCharInfoHolder = *pppCharBase;
+    // ppCharInfoHolder[0] (not *ppCharInfoHolder[0]) will store info about last character info.
+    // ppCharInfoHolder[1] (not *ppCharInfoHolder[1]) will store the substituted char.
+    // ppCharInfoHolder[2] to ppCharInfoHolder[6] (not *ppCharInfoHolder[1], etc) will be used for a temporary fake character info if necessary.
+    DWORD& lastCharInfo = (DWORD&)(ppCharInfoHolder[0]);
+    BYTE* fakeChar = (BYTE*)&ppCharInfoHolder[2];
+    void* returnValue = nullptr;
+
+    if (index == 0)
+        lastCharInfo = 0;
+    if (lastCharInfo != 0)
+    {
+        // second character of a Chinese character.
+        // prepare fackChar according to flags.
+        if ((flag & FLAG_EXTRA_SPACES) == FLAG_EXTRA_SPACES)
+        {
+            if (str[index] != 0x20)
+            {
+                returnValue = ppCharInfoHolder[0x2e];
+                lastCharInfo = 0;
+            }
+            else
+                returnValue = ppCharInfoHolder[0x20];
+        }
+        else
+        {
+            returnValue = fakeChar;
+            lastCharInfo = 0;
+        }
+    }
+    else
+    {
+        unsigned char fc = str[index];
+        if (fc <0x20)
+        {
+            returnValue = nullptr;
+        }
+        else if (fc < 128)
+        {
+            // ascii
+            returnValue = ppCharInfoHolder[(unsigned)fc];
+        }
+        else
+        {
+            bool isChinese = false;
+            // 0xa3 + pic name(probably ascii): external picture. 
+            // 0xa4: currency sign, probably followed by space
+            // 0xa7 + color code (probably ascii): change color
+            if (fc == 0xa7 || fc == 0xa3 || fc == 0xa4)
+            {
+                unsigned char sc = str[index + 1];
+                if (sc > 128)
+                {
+                    // 0xa3/0xa4/0xa7 + larger than 128 second byte: probably a chinese character.
+                    isChinese = true;
+                }
+            }
+            else
+            {
+                // probably Chinese character
+                isChinese = true;
+            }
+
+            if (isChinese)
+            {
+                unsigned char sc = str[index + 1];
+                if (sc == 0)
+                {
+                    returnValue = ppCharInfoHolder[(unsigned)fc];
+                }
+                else
+                {
+                    if (sc == 0x20 && ((flag & FLAG_EXTRA_SPACES) == FLAG_EXTRA_SPACES))
+                    {
+                        for (int i = index + 2; str[i] != 0; ++i)
+                        {
+                            if (str[i] != 0x20)
+                            {
+                                sc = str[i];
+                                /*str[index + 1] = str[i];
+                                str[i] = 0x2e;*/
+                                break;
+                            }
+                        }
+                        // sc = str[index + 1];
+                    }
+                    returnValue = ppCharInfoHolder[((unsigned)sc) << 8 | fc];
+                    if (returnValue)
+                    {
+                        lastCharInfo = ((unsigned)sc) << 8 | fc;
+                    }
+                    else
+                    {
+                        returnValue = ppCharInfoHolder[(unsigned)fc];
+                    }
+                }
+            }
+
+            
+
+        }
+    }
+    if (returnValue)
+    {
+        *((void**)pppCharBase + str[index]) = returnValue;
+    }
+
+    return lastCharInfo;
 }

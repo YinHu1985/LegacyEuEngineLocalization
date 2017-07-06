@@ -150,6 +150,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EuEngineLocalization.h" />
+    <ClInclude Include="include\injector\assembly.hpp" />
+    <ClInclude Include="include\injector\calling.hpp" />
+    <ClInclude Include="include\injector\gvm\gvm.hpp" />
+    <ClInclude Include="include\injector\gvm\translator.hpp" />
+    <ClInclude Include="include\injector\hooking.hpp" />
+    <ClInclude Include="include\injector\injector.hpp" />
+    <ClInclude Include="include\injector\utility.hpp" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
